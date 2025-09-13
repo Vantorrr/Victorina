@@ -26,7 +26,12 @@ BASE_URL: Final[str] = os.getenv("BASE_URL", "http://localhost:8080")
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text("Привет! Это бот викторины. Ведущий может открыть Меню или команду /host.")
+    await update.message.reply_text(
+        "👋 Привет! Я бот викторины.\n\n"
+        "• Ведущий: напиши \"Меню\" или /host — открою панель.\n"
+        "• Капитан: жми /register после того, как ведущий назначит тебя капитаном.\n\n"
+        "Удачной игры! 🎉"
+    )
 
 
 async def newgame(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -39,7 +44,20 @@ async def newgame(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         game_id = cur.lastrowid
         conn.execute("INSERT INTO rounds(game_id, number, status) VALUES (?, 1, 'active')", (game_id,))
         conn.commit()
-    await update.message.reply_text(f"Игра создана: {name} (id={game_id})")
+    await update.message.reply_text(
+        "🎮 Игра создана!\n\n"
+        f"Название: <b>{name}</b>\n"
+        f"ID: <code>{game_id}</code>\n\n"
+        "Что дальше?\n"
+        "1) ➕ Добавь команды (Меню → Добавить команду)\n"
+        "2) 👨‍✈️ Капитану: открыть чат с ботом → Start → /register\n"
+        "3) 🗂 В админке можно загрузить вопросы/кейсы\n"
+        "4) ▶ Когда готов — Запустить вопрос\n",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(
+            [[InlineKeyboardButton(text="Открыть админку", web_app=WebAppInfo(url=f"{BASE_URL}/admin"))]]
+        ),
+    )
 
 
 async def addteam(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -55,7 +73,14 @@ async def addteam(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if cur.rowcount == 0:
             conn.execute("UPDATE captains SET team_id=? WHERE username=?", (team_id, captain_username))
         conn.commit()
-    await update.message.reply_text(f"Команда '{team_name}' назначена капитану @{captain_username}")
+    await update.message.reply_text(
+        "✅ Команда добавлена!\n\n"
+        f"Название: <b>{team_name}</b>\n"
+        f"Капитан: @{captain_username}\n\n"
+        "Попроси капитана: открыть чат с ботом → нажать Start → отправить /register.\n"
+        "После регистрации капитан будет получать вопросы.",
+        parse_mode="HTML",
+    )
 
 
 async def register(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -70,7 +95,10 @@ async def register(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             return
         conn.execute("UPDATE captains SET telegram_user_id=?, chat_id=? WHERE id=?", (user.id, chat.id, row["id"]))
         conn.commit()
-    await update.message.reply_text("Капитан зарегистрирован. Ожидайте вопросы в личных сообщениях.")
+    await update.message.reply_text(
+        "🎯 Готово! Вы зарегистрированы как капитан своей команды.\n"
+        "Когда ведущий запустит вопрос — получите кнопки ответа и таймер ⏱ 60с."
+    )
 
 
 def _build_answer_keyboard(question_id: int, options: list[str], multi: bool) -> InlineKeyboardMarkup:
@@ -112,7 +140,12 @@ async def begin_question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         conn.execute("UPDATE games SET current_question_id=?, current_question_deadline=datetime('now','+60 seconds') WHERE id=?", (qid, game["id"]))
         conn.commit()
     await send_question_to_captains(game["id"], {"id": q["id"], "text": q["text"], "options": json.loads(q["options_json"]), "type": q.get("type", "single")}, context)
-    await update.message.reply_text(f"Вопрос {qid} отправлен капитанам. Приём ответов 60с.")
+    await update.message.reply_text(
+        f"📣 Вопрос <b>{qid}</b> отправлен капитанам! ⏱ 60 сек.\n"
+        "Жди ответы команд. По истечении времени нажми ‘Стоп приёма’.",
+        parse_mode="HTML",
+        reply_markup=_host_keyboard(),
+    )
 
 
 async def end_question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -123,7 +156,13 @@ async def end_question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             return
         conn.execute("UPDATE games SET current_question_deadline=datetime('now') WHERE id=?", (game["id"],))
         conn.commit()
-    await update.message.reply_text("Приём ответов остановлен.")
+    await update.message.reply_text(
+        "⛔ Приём ответов остановлен.\n"
+        "✔ Можешь показать результаты в админке или запустить следующий вопрос.",
+        reply_markup=InlineKeyboardMarkup(
+            [[InlineKeyboardButton(text="Открыть результаты", web_app=WebAppInfo(url=f"{BASE_URL}/admin"))]]
+        ),
+    )
 
 
 async def on_answer_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -201,7 +240,15 @@ async def host_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_admin(update):
         await update.message.reply_text("Доступ только для ведущего.")
         return ConversationHandler.END
-    await update.message.reply_text("Меню ведущего:", reply_markup=_host_keyboard())
+    await update.message.reply_text(
+        "🎛 Меню ведущего\n\n"
+        "Шаги запуска: \n"
+        "1) ‘Новая игра’ — создать матч\n"
+        "2) ‘Добавить команду’ — привязать @капитана\n"
+        "3) Капитану: Start → /register\n"
+        "4) ‘Запустить вопрос’ — рассылка с таймером 60с\n",
+        reply_markup=_host_keyboard()
+    )
     return CHOOSING
 
 
