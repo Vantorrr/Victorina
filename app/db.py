@@ -185,6 +185,30 @@ def init_db() -> None:
             conn.execute("UPDATE schema_meta SET version = 5 WHERE id = 1")
             conn.commit()
 
+        # v6: черновики ответов для мультивыбора (кейсы)
+        cur = conn.execute("SELECT version FROM schema_meta WHERE id = 1")
+        row = cur.fetchone()
+        current_version = row["version"] if row else 0
+        if current_version < 6:
+            conn.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS draft_answers (
+                    id INTEGER PRIMARY KEY,
+                    game_id INTEGER NOT NULL,
+                    question_id INTEGER NOT NULL,
+                    team_id INTEGER NOT NULL,
+                    selections_json TEXT NOT NULL,
+                    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    UNIQUE (team_id, question_id),
+                    FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
+                    FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE,
+                    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+                );
+                """
+            )
+            conn.execute("UPDATE schema_meta SET version = 6 WHERE id = 1")
+            conn.commit()
+
 
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")

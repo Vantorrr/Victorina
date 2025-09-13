@@ -102,10 +102,12 @@ async def register(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
-def _build_answer_keyboard(question_id: int, options: list[str], multi: bool) -> InlineKeyboardMarkup:
+def _build_answer_keyboard(question_id: int, options: list[str], multi: bool, selected: set[int] | None = None) -> InlineKeyboardMarkup:
     buttons = []
+    selected = selected or set()
     for idx, label in enumerate(options):
-        buttons.append([InlineKeyboardButton(text=label, callback_data=json.dumps({"qid": question_id, "opt": idx}))])
+        prefix = "✓ " if idx in selected else ""
+        buttons.append([InlineKeyboardButton(text=prefix + label, callback_data=json.dumps({"qid": question_id, "opt": idx}))])
     if multi:
         buttons.append([InlineKeyboardButton(text="Готово", callback_data=json.dumps({"qid": question_id, "done": True}))])
     return InlineKeyboardMarkup(buttons)
@@ -116,7 +118,7 @@ async def send_question_to_captains(game_id: int, question: dict, context: Conte
         caps = conn.execute("SELECT telegram_user_id, chat_id, team_id FROM captains WHERE telegram_user_id IS NOT NULL AND chat_id IS NOT NULL").fetchall()
     text = question["text"] + "\n\n" + "\n".join(question["options"]) + ("\n\nВремя ответа: 60 секунд" )
     multi = question.get("type") in ("multi", "case")
-    kb = _build_answer_keyboard(question["id"], [chr(65+i) for i in range(len(question["options"]))], multi)
+    kb = _build_answer_keyboard(question["id"], [chr(65+i) for i in range(len(question["options"]))], multi, set())
     for c in caps:
         try:
             await context.bot.send_message(chat_id=c["chat_id"], text=text, reply_markup=kb)
@@ -181,6 +183,7 @@ async def on_answer_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
     qid = data.get("qid")
     option_idx = data.get("opt")
+    done = data.get("done")
     with get_connection() as conn:
         cap = conn.execute("SELECT * FROM captains WHERE telegram_user_id=?", (user.id,)).fetchone()
         if not cap or not cap["team_id"]:
@@ -197,16 +200,68 @@ async def on_answer_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         if exists:
             await query.edit_message_text("Ответ уже зафиксирован от вашей команды.")
             return
-        if option_idx is None:
-            await query.edit_message_text("Выберите вариант.")
+        # Узнаём тип вопроса
+        q = conn.execute("SELECT * FROM questions WHERE id=?", (qid,)).fetchone()
+        q_type = (q["type"] or "single") if q else "single"
+        options_count = len(json.loads(q["options_json"])) if q else 0
+
+        if q_type == "single":
+            if option_idx is None:
+                await query.edit_message_text("Выберите вариант.")
+                return
+            conn.execute(
+                "INSERT INTO answers(game_id, question_id, team_id, captain_user_id, option_index, answered_at) VALUES (?,?,?,?,?,datetime('now'))",
+                (game["id"], qid, cap["team_id"], user.id, int(option_idx)),
+            )
+            conn.commit()
+            await query.edit_message_reply_markup(reply_markup=None)
+            await query.edit_message_text("Ответ принят. Изменение запрещено.")
             return
-        conn.execute(
-            "INSERT INTO answers(game_id, question_id, team_id, captain_user_id, option_index, answered_at) VALUES (?,?,?,?,?,datetime('now'))",
-            (game["id"], qid, cap["team_id"], user.id, int(option_idx)),
-        )
-        conn.commit()
-    await query.edit_message_reply_markup(reply_markup=None)
-    await query.edit_message_text("Ответ принят. Изменение запрещено.")
+
+        # multi|case — черновики + фиксация по кнопке "Готово"
+        row = conn.execute(
+            "SELECT selections_json FROM draft_answers WHERE game_id=? AND question_id=? AND team_id=?",
+            (game["id"], qid, cap["team_id"]),
+        ).fetchone()
+        current = set(json.loads(row["selections_json"])) if row else set()
+
+        if option_idx is not None and not done:
+            idx = int(option_idx)
+            if 0 <= idx < options_count:
+                if idx in current:
+                    current.remove(idx)
+                else:
+                    current.add(idx)
+                if row:
+                    conn.execute(
+                        "UPDATE draft_answers SET selections_json=?, updated_at=datetime('now') WHERE game_id=? AND question_id=? AND team_id=?",
+                        (json.dumps(sorted(list(current))), game["id"], qid, cap["team_id"]),
+                    )
+                else:
+                    conn.execute(
+                        "INSERT INTO draft_answers(game_id, question_id, team_id, selections_json) VALUES (?,?,?,?)",
+                        (game["id"], qid, cap["team_id"], json.dumps(sorted(list(current)))),
+                    )
+                conn.commit()
+            # перерисуем клавиатуру
+            letters = [chr(65+i) for i in range(options_count)]
+            kb = _build_answer_keyboard(qid, letters, True, current)
+            await query.edit_message_reply_markup(reply_markup=kb)
+            return
+
+        if done:
+            if not current:
+                await query.answer("Выберите хотя бы один вариант", show_alert=True)
+                return
+            conn.execute(
+                "INSERT INTO answers(game_id, question_id, team_id, captain_user_id, option_index, answered_at, option_indices_json) VALUES (?,?,?,?,?,datetime('now'),?)",
+                (game["id"], qid, cap["team_id"], user.id, -1, json.dumps(sorted(list(current)))),
+            )
+            conn.execute("DELETE FROM draft_answers WHERE game_id=? AND question_id=? AND team_id=?", (game["id"], qid, cap["team_id"]))
+            conn.commit()
+            await query.edit_message_reply_markup(reply_markup=None)
+            await query.edit_message_text("Ответ зафиксирован. Изменение запрещено.")
+            return
 
 
 # ===== Меню ведущего (кнопки) =====

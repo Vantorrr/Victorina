@@ -69,7 +69,12 @@
       try {
         const msg = JSON.parse(evt.data);
         if (msg.type === 'slide') {
-          stage.textContent = msg.text || 'Слайд';
+          // Если прилетит slide.image — покажем картинку, иначе текст
+          if (msg.image) {
+            stage.innerHTML = `<img src="${msg.image}" alt="slide" style="max-width:100%; border-radius:12px;"/>`;
+          } else {
+            stage.textContent = msg.text || 'Слайд';
+          }
           stopTimer();
         }
         if (msg.type === 'question') {

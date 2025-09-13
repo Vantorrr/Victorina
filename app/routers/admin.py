@@ -111,12 +111,32 @@ async def load_default():
 
 @router.get("/admin/score")
 async def admin_score():
+    # Подсчёт: single — 1 балл за правильный; case — сумма весов по выбранным вариантам
     with get_connection() as conn:
         rows = conn.execute(
             """
-            SELECT t.name AS team, COALESCE(s.points,0) AS points
+            WITH case_points AS (
+                SELECT a.team_id,
+                       SUM(
+                         json_extract(q.scoring_weights_json, '$.' || substr(upper(printf('%c', 65 + json_each.value)), 1))
+                       ) AS pts
+                FROM answers a
+                JOIN questions q ON q.id = a.question_id AND q.type IN ('case','multi')
+                JOIN json_each(COALESCE(a.option_indices_json, '[]'))
+                GROUP BY a.team_id
+            ),
+            single_points AS (
+                SELECT a.team_id,
+                       SUM(CASE WHEN q.type='single' AND a.option_index = q.correct_index THEN 1 ELSE 0 END) AS pts
+                FROM answers a
+                JOIN questions q ON q.id = a.question_id
+                GROUP BY a.team_id
+            )
+            SELECT t.name AS team,
+                   COALESCE(sp.pts,0) + COALESCE(cp.pts,0) AS points
             FROM teams t
-            LEFT JOIN scores s ON s.team_id = t.id
+            LEFT JOIN single_points sp ON sp.team_id = t.id
+            LEFT JOIN case_points cp ON cp.team_id = t.id
             ORDER BY points DESC, team ASC
             """
         ).fetchall()
