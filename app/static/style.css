@@ -1,13 +1,79 @@
-body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; }
-.container { padding: 24px; }
-.row { margin: 12px 0; display: flex; gap: 12px; align-items: center; }
-button { padding: 10px 16px; border-radius: 8px; border: 1px solid #ccc; background: #fafafa; cursor: pointer; }
-button:hover { background: #f0f0f0; }
-.stage { white-space: pre-line; font-size: 28px; padding: 16px; min-height: 200px; border: 1px dashed #999; border-radius: 12px; background: #fff; }
-.timer { font-size: 64px; font-weight: 700; margin-top: 16px; }
+:root {
+  --bg: #0b0e1a;
+  --bg-elev: #121735;
+  --text: #e7ecff;
+  --muted: #9aa4d6;
+  --primary: #4f6cff;
+  --primary-strong: #3c54d4;
+  --border: #2a3a90;
+  --card: #0f1430;
+}
+
+/* Telegram WebApp theme override (applies via JS) */
+body.tg {
+  --bg: var(--tg-bg, #0b0e1a);
+  --bg-elev: var(--tg-bg-elev, #121735);
+  --text: var(--tg-text, #e7ecff);
+  --muted: var(--tg-muted, #9aa4d6);
+  --primary: var(--tg-primary, #4f6cff);
+  --primary-strong: var(--tg-primary-strong, #3c54d4);
+  --border: var(--tg-border, #2a3a90);
+  --card: var(--tg-card, #0f1430);
+}
+
+html, body { height: 100%; }
+body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; background: var(--bg); color: var(--text); }
+
+.appbar {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px; background: linear-gradient(180deg, rgba(0,0,0,0.25), rgba(0,0,0,0));
+  backdrop-filter: blur(6px);
+}
+.appbar h1 { font-size: 18px; margin: 0; color: var(--text); }
+
+.container { padding: 16px; max-width: 860px; margin: 0 auto; }
+.row { margin: 12px 0; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 16px; }
+.stage { white-space: pre-line; font-size: 20px; line-height: 1.4; padding: 16px; min-height: 160px; border: 1px dashed var(--border); border-radius: 12px; background: var(--bg-elev); }
+
+button, .btn {
+  padding: 12px 16px; border-radius: 12px; border: 1px solid var(--border);
+  background: var(--bg-elev); color: var(--text); cursor: pointer; font-weight: 600;
+}
+button:hover, .btn:hover { background: #1b2150; }
+.btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+.btn-primary:hover { background: var(--primary-strong); }
+.btn-ghost { background: transparent; }
+
+input, select {
+  background: var(--bg-elev); color: var(--text); border: 1px solid var(--border);
+  border-radius: 12px; padding: 12px 14px; outline: none; flex: 1 1 auto;
+}
+
+.grid-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.timer {
+  width: 140px; height: 140px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 40px; font-weight: 800; color: #fff;
+  background: radial-gradient(100% 100% at 50% 0%, #5a7bff 0%, #2636a3 100%);
+  box-shadow: 0 10px 30px rgba(79,108,255,0.45);
+  margin: 16px auto 0;
+}
 .hidden { display: none; }
 
-body.hall { background: #0b0e1a; color: #e7ecff; }
-body.hall .stage { background: #121735; border-color: #2a3a90; }
-body.admin { background: #ffffff; color: #111; }
+body.hall { background: radial-gradient(180% 90% at 50% -10%, #121735 0%, #0b0e1a 60%); }
+body.hall .stage { background: rgba(18, 23, 53, 0.8); border-color: var(--border); }
+body.admin { background: var(--bg); color: var(--text); }
+
+.footer-note { color: var(--muted); font-size: 12px; margin-top: 12px; }
+
+@media (max-width: 640px) {
+  .container { padding: 12px; }
+  .grid-buttons { grid-template-columns: 1fr; }
+  .stage { font-size: 18px; min-height: 120px; }
+  .timer { width: 110px; height: 110px; font-size: 32px; }
+}
 

@@ -6,29 +6,51 @@
   <title>Админ — Викторина</title>
   <link rel="stylesheet" href="/static/style.css" />
 </head>
-<body class="admin">
+<body class="admin tg">
+  <div class="appbar"><h1>Панель ведущего</h1></div>
   <div class="container">
-    <h1>Панель ведущего</h1>
-    <div class="row">
-      <button id="btn-slide">Показать слайд</button>
-      <button id="btn-question">Показать вопрос</button>
-      <button id="btn-results">Показать результаты</button>
-      <button id="btn-load-fixtures">Загрузить вопросы (фикстуры)</button>
-      <button id="btn-load-default">Загрузить полный набор (2 раунда)</button>
-      <button id="btn-partner">Показать слайд WORKS TEAM + отправить вопрос</button>
-      <button id="btn-partner-foodi">Показать слайд ХЕЛЛО ФУДИ + отправить вопрос</button>
-      <button id="btn-partner-coffee">Показать слайды КОФЕЙНЫЕ ЭКСПЕРТЫ + отправить вопрос</button>
-      <button id="btn-partner-optikom">Показать слайд ОПТИКОМ + отправить вопрос</button>
-      <button id="btn-partner-funk">Показать слайд ФАНК + отправить вопрос</button>
-    </div>
-    <div class="row">
-      <input id="text" placeholder="Текст" style="width: 60%" />
-      <input id="options" placeholder="Варианты через ;" style="width: 30%" />
-      <input id="seconds" placeholder="Секунды" type="number" value="60" style="width: 8%"/>
+    <div class="card">
+      <div class="row grid-buttons">
+        <button class="btn-primary" id="btn-slide">Показать слайд</button>
+        <button class="btn-primary" id="btn-question">Показать вопрос</button>
+        <button class="btn" id="btn-results">Показать результаты</button>
+        <button class="btn" id="btn-load-fixtures">Загрузить вопросы (фикстуры)</button>
+        <button class="btn" id="btn-load-default">Загрузить полный набор (2 раунда)</button>
+        <button class="btn" id="btn-partner">WORKS TEAM: слайд + вопрос</button>
+        <button class="btn" id="btn-partner-foodi">ХЕЛЛО ФУДИ: слайд + вопрос</button>
+        <button class="btn" id="btn-partner-coffee">КОФЕЙНЫЕ ЭКСПЕРТЫ: слайды + вопрос</button>
+        <button class="btn" id="btn-partner-optikom">ОПТИКОМ: слайд + вопрос</button>
+        <button class="btn" id="btn-partner-funk">ФАНК: слайд + вопрос</button>
+      </div>
+      <div class="row">
+        <input id="text" placeholder="Текст" />
+        <input id="options" placeholder="Варианты через ;" />
+        <input id="seconds" placeholder="Секунды" type="number" value="60"/>
+      </div>
+      <div class="footer-note">Подсказка: варианты вводите через «;», секунд по умолчанию 60.</div>
     </div>
   </div>
 
   <script>
+    // Telegram WebApp theme integration
+    try {
+      if (window.Telegram && window.Telegram.WebApp) {
+        const wp = window.Telegram.WebApp; wp.expand();
+        const tp = wp.themeParams || {};
+        const map = {
+          '--tg-bg': tp.bg_color,
+          '--tg-bg-elev': tp.secondary_bg_color,
+          '--tg-text': tp.text_color,
+          '--tg-muted': tp.hint_color,
+          '--tg-primary': tp.button_color,
+          '--tg-primary-strong': tp.button_color,
+          '--tg-border': tp.section_separator_color,
+          '--tg-card': tp.section_bg_color,
+        };
+        for (const k in map) { if (map[k]) document.body.style.setProperty(k, map[k]); }
+      }
+    } catch(e){}
+
     async function post(path, body){
       await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     }

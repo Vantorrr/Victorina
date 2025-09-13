@@ -6,14 +6,39 @@
   <title>Экран зала — Викторина</title>
   <link rel="stylesheet" href="/static/style.css" />
 </head>
-<body class="hall">
+<body class="hall tg">
+  <div class="appbar"><h1>Экран зала</h1></div>
   <div class="container">
-    <h1>Экран зала</h1>
-    <div id="stage" class="stage">Ожидание…</div>
-    <div id="timer" class="timer hidden">60</div>
+    <div class="card">
+      <div id="stage" class="stage">Ожидание…</div>
+      <div id="timer" class="timer hidden">60</div>
+      <div class="footer-note">Управление идёт из панели ведущего.</div>
+    </div>
   </div>
 
   <script>
+    // Telegram WebApp theme integration
+    try {
+      if (window.Telegram && window.Telegram.WebApp) {
+        const wp = window.Telegram.WebApp;
+        wp.expand();
+        const tp = wp.themeParams || {};
+        const map = {
+          '--tg-bg': tp.bg_color,
+          '--tg-bg-elev': tp.secondary_bg_color,
+          '--tg-text': tp.text_color,
+          '--tg-muted': tp.hint_color,
+          '--tg-primary': tp.button_color,
+          '--tg-primary-strong': tp.button_color,
+          '--tg-border': tp.section_separator_color,
+          '--tg-card': tp.section_bg_color,
+        };
+        for (const k in map) {
+          if (map[k]) document.body.style.setProperty(k, map[k]);
+        }
+      }
+    } catch (e) { /* noop */ }
+
     const stage = document.getElementById('stage');
     const timerEl = document.getElementById('timer');
     let countdownId = null;
@@ -48,7 +73,7 @@
           stopTimer();
         }
         if (msg.type === 'question') {
-          stage.textContent = `${msg.text}\n${(msg.options || []).join(' / ')}`;
+          stage.textContent = `${msg.text}\n\n• ${((msg.options || []).join('\n• '))}`;
           startTimer(msg.seconds || 60);
         }
         if (msg.type === 'results') {
