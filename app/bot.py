@@ -154,6 +154,59 @@ async def begin_question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     )
 
 
+async def begin_next_question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Отправить следующий по порядку вопрос активного раунда без ввода ID."""
+    with get_connection() as conn:
+        game = conn.execute("SELECT * FROM games WHERE status='active' ORDER BY id DESC LIMIT 1").fetchone()
+        if not game:
+            await update.message.reply_text("Активная игра не найдена")
+            return
+        rnd = conn.execute(
+            "SELECT * FROM rounds WHERE game_id=? AND status='active' ORDER BY number DESC LIMIT 1",
+            (game["id"],),
+        ).fetchone()
+        if not rnd:
+            await update.message.reply_text("Активный раунд не найден")
+            return
+        next_q = None
+        if game["current_question_id"]:
+            cur_q = conn.execute(
+                "SELECT order_index FROM questions WHERE id=?",
+                (game["current_question_id"],),
+            ).fetchone()
+            if cur_q:
+                next_q = conn.execute(
+                    "SELECT * FROM questions WHERE round_id=? AND order_index>? ORDER BY order_index ASC LIMIT 1",
+                    (rnd["id"], cur_q["order_index"]),
+                ).fetchone()
+        if not next_q:
+            next_q = conn.execute(
+                "SELECT * FROM questions WHERE round_id=? ORDER BY order_index ASC LIMIT 1",
+                (rnd["id"],),
+            ).fetchone()
+        if not next_q:
+            await update.message.reply_text("В этом раунде нет вопросов.")
+            return
+        conn.execute(
+            "UPDATE games SET current_question_id=?, current_question_deadline=datetime('now','+60 seconds') WHERE id=?",
+            (next_q["id"], game["id"]),
+        )
+        conn.commit()
+
+    opts = json.loads(next_q["options_json"]) if next_q else []
+    await send_question_to_captains(
+        game["id"],
+        {"id": next_q["id"], "text": next_q["text"], "options": opts, "type": next_q["type"] if "type" in next_q.keys() else "single"},
+        context,
+    )
+    await broadcast_to_hall({"type": "question", "text": next_q["text"], "options": opts, "seconds": 60})
+    await update.message.reply_text(
+        f"▶ Отправлен следующий вопрос <b>{next_q['id']}</b>. ⏱ 60 сек.",
+        parse_mode="HTML",
+        reply_markup=_host_keyboard(),
+    )
+
+
 async def end_question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     with get_connection() as conn:
         game = conn.execute("SELECT * FROM games WHERE status='active' ORDER BY id DESC LIMIT 1").fetchone()
@@ -280,8 +333,9 @@ def _host_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         [
             ["Новая игра", "Добавить команду"],
-            ["Запустить вопрос", "Стоп приёма"],
-            ["Счёт", "Экспорт"],
+            ["Запустить вопрос", "Следующий вопрос"],
+            ["Стоп приёма", "Счёт"],
+            ["Экспорт", "Админ‑панель"],
             ["Админ‑панель", "Экран зала"],
             ["Админы"],
             ["Отмена"],
@@ -322,8 +376,11 @@ async def host_choose(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Формат: НазваниеКоманды @username_капитана", reply_markup=ReplyKeyboardRemove())
         return ADDTEAM_DATA
     if text == "Запустить вопрос":
-        await update.message.reply_text("Укажи ID вопроса (число):", reply_markup=ReplyKeyboardRemove())
+        await update.message.reply_text("Укажи ID вопроса (число) или нажми ‘Следующий вопрос’.", reply_markup=ReplyKeyboardRemove())
         return QUESTION_ID
+    if text == "Следующий вопрос":
+        await begin_next_question(update, context)
+        return CHOOSING
     if text == "Стоп приёма":
         await end_question(update, context)
         await update.message.reply_text("Ок.", reply_markup=_host_keyboard())
@@ -488,6 +545,7 @@ def build_application() -> Application | None:
     app.add_handler(CommandHandler("addteam", addteam))
     app.add_handler(CommandHandler("register", register))
     app.add_handler(CommandHandler("q", begin_question))
+    app.add_handler(CommandHandler("next", begin_next_question))
     app.add_handler(CommandHandler("stop", end_question))
     app.add_handler(CallbackQueryHandler(on_answer_callback))
 
