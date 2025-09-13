@@ -4,7 +4,15 @@ import asyncio
 import os
 from typing import Final
 
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram import (
+    Update,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    ReplyKeyboardMarkup,
+    ReplyKeyboardRemove,
+    WebAppInfo,
+    MenuButtonWebApp,
+)
 from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler, MessageHandler, ConversationHandler, filters
 import json
 
@@ -174,7 +182,8 @@ def _host_keyboard() -> ReplyKeyboardMarkup:
             ["Новая игра", "Добавить команду"],
             ["Запустить вопрос", "Стоп приёма"],
             ["Счёт", "Экспорт"],
-            ["Админ‑панель", "Админы"],
+            ["Админ‑панель", "Экран зала"],
+            ["Админы"],
             ["Отмена"],
         ],
         resize_keyboard=True,
@@ -239,13 +248,27 @@ async def host_choose(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return CHOOSING
     if text == "Админ‑панель":
+        await update.message.reply_text("Админ‑панель:", reply_markup=_host_keyboard())
+        # Кнопка, открывающая веб внутри Telegram (Web App)
         await update.message.reply_text(
-            "Админ‑панель:",
-            reply_markup=_host_keyboard()
+            "Открыть админку во встроенном окне:",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(text="Открыть /admin", web_app=WebAppInfo(url=f"{BASE_URL}/admin"))]])
+        )
+        # Дополнительно обычная ссылка на случай, если клиент без WebApp
+        await update.message.reply_text(
+            "Если кнопка не открывается, нажми ссылку:",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(text="/admin (ссылка)", url=f"{BASE_URL}/admin")]])
+        )
+        return CHOOSING
+    if text == "Экран зала":
+        await update.message.reply_text("Экран зала:", reply_markup=_host_keyboard())
+        await update.message.reply_text(
+            "Открыть экран зала во встроенном окне:",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(text="Открыть /hall", web_app=WebAppInfo(url=f"{BASE_URL}/hall"))]])
         )
         await update.message.reply_text(
-            "Открыть админку:",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(text="Открыть /admin", url=f"{BASE_URL}/admin")]])
+            "Если кнопка не открывается, нажми ссылку:",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(text="/hall (ссылка)", url=f"{BASE_URL}/hall")]])
         )
         return CHOOSING
     if text == "Админы":
