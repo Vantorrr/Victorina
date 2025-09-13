@@ -17,6 +17,7 @@ from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQuer
 import json
 
 from app.db import get_connection, utc_now_iso
+from app.routers.hall import broadcast_to_hall
 
 
 BOT_TOKEN: Final[str | None] = os.getenv("BOT_TOKEN")
@@ -139,7 +140,10 @@ async def begin_question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             return
         conn.execute("UPDATE games SET current_question_id=?, current_question_deadline=datetime('now','+60 seconds') WHERE id=?", (qid, game["id"]))
         conn.commit()
-    await send_question_to_captains(game["id"], {"id": q["id"], "text": q["text"], "options": json.loads(q["options_json"]), "type": q.get("type", "single")}, context)
+    opts = json.loads(q["options_json"])
+    await send_question_to_captains(game["id"], {"id": q["id"], "text": q["text"], "options": opts, "type": q.get("type", "single")}, context)
+    # Покажем вопрос и на экране зала
+    await broadcast_to_hall({"type": "question", "text": q["text"], "options": opts, "seconds": 60})
     await update.message.reply_text(
         f"📣 Вопрос <b>{qid}</b> отправлен капитанам! ⏱ 60 сек.\n"
         "Жди ответы команд. По истечении времени нажми ‘Стоп приёма’.",
@@ -156,6 +160,8 @@ async def end_question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             return
         conn.execute("UPDATE games SET current_question_deadline=datetime('now') WHERE id=?", (game["id"],))
         conn.commit()
+    # Обновим экран зала
+    await broadcast_to_hall({"type": "results", "text": "Приём ответов остановлен"})
     await update.message.reply_text(
         "⛔ Приём ответов остановлен.\n"
         "✔ Можешь показать результаты в админке или запустить следующий вопрос.",
