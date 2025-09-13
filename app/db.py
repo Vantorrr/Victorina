@@ -209,6 +209,33 @@ def init_db() -> None:
             conn.execute("UPDATE schema_meta SET version = 6 WHERE id = 1")
             conn.commit()
 
+        # v7: исправление схемы captains — telegram_user_id допускает NULL (заполняется при /register)
+        cur = conn.execute("SELECT version FROM schema_meta WHERE id = 1")
+        row = cur.fetchone()
+        current_version = row["version"] if row else 0
+        if current_version < 7:
+            # Пере-создадим таблицу, сохраним данные
+            conn.executescript(
+                """
+                PRAGMA foreign_keys=OFF;
+                CREATE TABLE IF NOT EXISTS captains_new (
+                    id INTEGER PRIMARY KEY,
+                    telegram_user_id INTEGER UNIQUE,
+                    username TEXT,
+                    team_id INTEGER UNIQUE,
+                    chat_id INTEGER,
+                    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL
+                );
+                INSERT INTO captains_new(id, telegram_user_id, username, team_id, chat_id)
+                SELECT id, telegram_user_id, username, team_id, chat_id FROM captains;
+                DROP TABLE captains;
+                ALTER TABLE captains_new RENAME TO captains;
+                PRAGMA foreign_keys=ON;
+                """
+            )
+            conn.execute("UPDATE schema_meta SET version = 7 WHERE id = 1")
+            conn.commit()
+
 
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
