@@ -32,6 +32,18 @@ async def admin_broadcast(payload: dict):
     return {"ok": True}
 
 
+@router.post("/admin/show-final-results")
+async def admin_show_final_results():
+    """Показать финальные результаты на экране зала."""
+    data = await admin_final_results()
+    results_text = "\n".join([
+        f"{r['team']}: {r['total']} очков — {r['level']}"
+        for r in data["results"]
+    ])
+    await broadcast_to_hall({"type": "results", "text": f"ИТОГИ ВИКТОРИНЫ\n\n{results_text}"})
+    return {"ok": True}
+
+
 @router.post("/admin/load-fixtures")
 async def load_fixtures(payload: dict):
     """Загрузка фикстур вопросов. Ожидает структуру: { game_name, round: 1|2, questions: [...] }"""
@@ -211,4 +223,81 @@ async def partner_question(payload: dict, request: FastAPIRequest):
         return {"ok": True, "warning": "tg bot disabled"}
     await send_question_to_captains(game_id, {"id": qid, "text": text, "options": options, "type": "single"}, tg_app.bot)
     return {"ok": True, "question_id": qid}
+
+
+@router.get("/admin/final-results")
+async def admin_final_results():
+    """Финальная таблица с уровнями по кейсам."""
+    with get_connection() as conn:
+        # Подсчёт по кейсам
+        rows = conn.execute(
+            """
+            WITH case_points AS (
+                SELECT a.team_id,
+                       a.question_id,
+                       SUM(
+                         COALESCE(json_extract(q.scoring_weights_json, '$.' || upper(printf('%c', 65 + json_each.value))), 0)
+                       ) AS case_pts,
+                       COUNT(CASE WHEN json_extract(q.scoring_weights_json, '$.' || upper(printf('%c', 65 + json_each.value))) = 0 THEN 1 END) AS zero_count
+                FROM answers a
+                JOIN questions q ON q.id = a.question_id AND q.type = 'case'
+                JOIN json_each(COALESCE(a.option_indices_json, '[]'))
+                GROUP BY a.team_id, a.question_id
+            ),
+            team_case_results AS (
+                SELECT team_id,
+                       SUM(case_pts) AS total_case_pts,
+                       SUM(zero_count) AS total_zeros
+                FROM case_points
+                GROUP BY team_id
+            ),
+            single_points AS (
+                SELECT a.team_id,
+                       COUNT(CASE WHEN q.type='single' AND a.option_index = q.correct_index THEN 1 END) AS correct,
+                       COUNT(CASE WHEN q.type='single' THEN 1 END) AS total
+                FROM answers a
+                JOIN questions q ON q.id = a.question_id
+                GROUP BY a.team_id
+            )
+            SELECT t.name AS team,
+                   COALESCE(sp.correct,0) AS single_correct,
+                   COALESCE(sp.total,0) AS single_total,
+                   COALESCE(tcr.total_case_pts,0) AS case_points,
+                   COALESCE(tcr.total_zeros,0) AS has_zero
+            FROM teams t
+            LEFT JOIN single_points sp ON sp.team_id = t.id
+            LEFT JOIN team_case_results tcr ON tcr.team_id = t.id
+            ORDER BY single_correct + COALESCE(tcr.total_case_pts,0) DESC, team ASC
+            """
+        ).fetchall()
+    
+    results = []
+    for r in rows:
+        single_pts = r["single_correct"]
+        case_pts = r["case_points"]
+        has_zero = r["has_zero"] > 0
+        total = single_pts + case_pts
+        
+        # Определение уровня
+        if has_zero or single_pts == 0:
+            level = "Базовый"
+        elif case_pts >= 4:
+            level = "Супер-профи"
+        elif case_pts >= 3:
+            level = "Продвинутый"
+        elif case_pts >= 1.5:
+            level = "Средний"
+        else:
+            level = "Базовый"
+        
+        results.append({
+            "team": r["team"],
+            "single_correct": single_pts,
+            "single_total": r["single_total"],
+            "case_points": case_pts,
+            "total": total,
+            "level": level
+        })
+    
+    return {"results": results}
 

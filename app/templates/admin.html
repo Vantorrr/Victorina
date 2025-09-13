@@ -21,6 +21,7 @@
         <button class="btn" id="btn-partner-coffee">КОФЕЙНЫЕ ЭКСПЕРТЫ: слайды + вопрос</button>
         <button class="btn" id="btn-partner-optikom">ОПТИКОМ: слайд + вопрос</button>
         <button class="btn" id="btn-partner-funk">ФАНК: слайд + вопрос</button>
+        <button class="btn-primary" id="btn-final-results">Показать финальные результаты</button>
       </div>
       <div class="row">
         <input id="text" placeholder="Текст" />
@@ -135,6 +136,11 @@
       };
       await post('/admin/partner-question', payload);
       alert('Слайд показан. Вопрос отправлен капитанам на 60с.');
+    };
+
+    document.getElementById('btn-final-results').onclick = async () => {
+      await post('/admin/show-final-results', {});
+      alert('Финальные результаты показаны на экране зала.');
     };
 
     // Быстрые ссылки на экспорт и счет

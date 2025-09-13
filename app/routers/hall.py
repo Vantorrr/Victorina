@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, WebSocket, Request
+from fastapi import APIRouter, WebSocket, Request, HTTPException, Query
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+import os
 
 from app.websocket_manager import WebSocketManager
 
@@ -11,9 +12,13 @@ router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 ws_manager = WebSocketManager()
 
+HALL_TOKEN = os.getenv("HALL_TOKEN", "quiz2024")
+
 
 @router.get("/hall", response_class=HTMLResponse)
-async def hall_page(request: Request):
+async def hall_page(request: Request, token: str = Query(None)):
+    if token != HALL_TOKEN:
+        raise HTTPException(status_code=403, detail="Неверный токен доступа")
     return templates.TemplateResponse("hall.html", {"request": request})
 
 

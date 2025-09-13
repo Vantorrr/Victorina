@@ -318,7 +318,7 @@ async def on_answer_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 # ===== Меню ведущего (кнопки) =====
-CHOOSING, NEWGAME_NAME, ADDTEAM_DATA, QUESTION_ID, ADMIN_ADD, ADMIN_DEL = range(6)
+CHOOSING, NEWGAME_NAME, ADDTEAM_DATA, QUESTION_ID, ADMIN_ADD, ADMIN_DEL, CONFIRM_ACTION = range(7)
 
 
 def _is_admin(update: Update) -> bool:
@@ -370,8 +370,12 @@ async def host_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def host_choose(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     if text == "Новая игра":
-        await update.message.reply_text("Название игры?", reply_markup=ReplyKeyboardRemove())
-        return NEWGAME_NAME
+        context.user_data["pending_action"] = "newgame"
+        await update.message.reply_text(
+            "⚠️ Создать новую игру?\n\nЭто действие завершит текущую игру.\nПодтвердите: Да или Нет",
+            reply_markup=ReplyKeyboardMarkup([["Да", "Нет"]], resize_keyboard=True),
+        )
+        return CONFIRM_ACTION
     if text == "Добавить команду":
         await update.message.reply_text("Формат: НазваниеКоманды @username_капитана", reply_markup=ReplyKeyboardRemove())
         return ADDTEAM_DATA
@@ -382,9 +386,12 @@ async def host_choose(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await begin_next_question(update, context)
         return CHOOSING
     if text == "Стоп приёма":
-        await end_question(update, context)
-        await update.message.reply_text("Ок.", reply_markup=_host_keyboard())
-        return CHOOSING
+        context.user_data["pending_action"] = "stop"
+        await update.message.reply_text(
+            "⚠️ Остановить приём ответов?\n\nКапитаны больше не смогут отвечать.\nПодтвердите: Да или Нет",
+            reply_markup=ReplyKeyboardMarkup([["Да", "Нет"]], resize_keyboard=True),
+        )
+        return CONFIRM_ACTION
     if text == "Счёт":
         with get_connection() as conn:
             rows = conn.execute(
@@ -426,14 +433,15 @@ async def host_choose(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return CHOOSING
     if text == "Экран зала":
+        hall_token = os.getenv("HALL_TOKEN", "quiz2024")
         await update.message.reply_text("Экран зала:", reply_markup=_host_keyboard())
         await update.message.reply_text(
             "Открыть экран зала во встроенном окне:",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(text="Открыть /hall", web_app=WebAppInfo(url=f"{BASE_URL}/hall"))]])
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(text="Открыть /hall", web_app=WebAppInfo(url=f"{BASE_URL}/hall?token={hall_token}"))]])
         )
         await update.message.reply_text(
             "Если кнопка не открывается, нажми ссылку:",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(text="/hall (ссылка)", url=f"{BASE_URL}/hall")]])
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(text="/hall (ссылка)", url=f"{BASE_URL}/hall?token={hall_token}")]])
         )
         return CHOOSING
     if text == "Админы":
@@ -535,6 +543,21 @@ async def host_admin_del(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return CHOOSING
 
 
+async def host_confirm_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    action = context.user_data.get("pending_action")
+    if text == "Да":
+        if action == "newgame":
+            await update.message.reply_text("Название игры?", reply_markup=ReplyKeyboardRemove())
+            return NEWGAME_NAME
+        elif action == "stop":
+            await end_question(update, context)
+            await update.message.reply_text("Ок.", reply_markup=_host_keyboard())
+            return CHOOSING
+    await update.message.reply_text("Действие отменено.", reply_markup=_host_keyboard())
+    return CHOOSING
+
+
 def build_application() -> Application | None:
     if not BOT_TOKEN:
         return None
@@ -559,6 +582,7 @@ def build_application() -> Application | None:
             3: [MessageHandler(filters.TEXT & ~filters.COMMAND, host_question_id)],
             4: [MessageHandler(filters.TEXT & ~filters.COMMAND, host_admin_add)],
             5: [MessageHandler(filters.TEXT & ~filters.COMMAND, host_admin_del)],
+            6: [MessageHandler(filters.TEXT & ~filters.COMMAND, host_confirm_action)],
         },
         fallbacks=[MessageHandler(filters.Regex("^(Отмена|Назад)$"), host_choose)],
     )
