@@ -297,18 +297,26 @@ async def host_choose(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def host_newgame_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    update.message.text = update.message.text.strip()
+    name = update.message.text.strip()
+    if not name:
+        await update.message.reply_text("Введите название.")
+        return NEWGAME_NAME
+    # Передадим как аргумент и используем существующий обработчик
+    context.args = [name]
     await newgame(update, context)
     await update.message.reply_text("Создано.", reply_markup=_host_keyboard())
     return CHOOSING
 
 
 async def host_addteam_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    parts = update.message.text.strip().split()
-    if len(parts) < 2:
+    raw = update.message.text.strip()
+    parts = raw.split()
+    if len(parts) < 2 or not parts[-1].startswith('@'):
         await update.message.reply_text("Нужно: НазваниеКоманды @username", reply_markup=_host_keyboard())
         return CHOOSING
-    context.args = [parts[0], parts[1]]
+    captain_mention = parts[-1]
+    team_name = raw[: raw.rfind(captain_mention)].strip()
+    context.args = [team_name, captain_mention]
     await addteam(update, context)
     await update.message.reply_text("Ок.", reply_markup=_host_keyboard())
     return CHOOSING
