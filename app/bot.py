@@ -14,6 +14,7 @@ from app.db import get_connection, utc_now_iso
 BOT_TOKEN: Final[str | None] = os.getenv("BOT_TOKEN")
 ADMIN_USERNAMES: Final[list[str]] = [u.strip().lower() for u in (os.getenv("ADMIN_USERNAMES", "").split(",")) if u.strip()]
 SEED_ADMIN_ID: Final[int | None] = int(os.getenv("SEED_ADMIN_ID", "0")) or None
+BASE_URL: Final[str] = os.getenv("BASE_URL", "http://localhost:8080")
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -227,10 +228,25 @@ async def host_choose(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Текущий счёт:\n" + ("\n".join(lines) if lines else "пока пусто"), reply_markup=_host_keyboard())
         return CHOOSING
     if text == "Экспорт":
-        await update.message.reply_text("Экспорт CSV: http://localhost:8080/admin/export.csv", reply_markup=_host_keyboard())
+        await update.message.reply_text(
+            "Экспорт CSV:",
+            reply_markup=_host_keyboard()
+        )
+        # Параллельно отправим кнопку-ссылку
+        await update.message.reply_text(
+            "Открыть экспорт:",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(text="Экспорт CSV", url=f"{BASE_URL}/admin/export.csv")]])
+        )
         return CHOOSING
     if text == "Админ‑панель":
-        await update.message.reply_text("Админ: http://localhost:8080/admin", reply_markup=_host_keyboard())
+        await update.message.reply_text(
+            "Админ‑панель:",
+            reply_markup=_host_keyboard()
+        )
+        await update.message.reply_text(
+            "Открыть админку:",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(text="Открыть /admin", url=f"{BASE_URL}/admin")]])
+        )
         return CHOOSING
     if text == "Админы":
         await update.message.reply_text("Управление администраторами:", reply_markup=_admins_keyboard())
