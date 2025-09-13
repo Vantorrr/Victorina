@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Админ — Викторина</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body class="admin">
+  <div class="container">
+    <h1>Панель ведущего</h1>
+    <div class="row">
+      <button id="btn-slide">Показать слайд</button>
+      <button id="btn-question">Показать вопрос</button>
+      <button id="btn-results">Показать результаты</button>
+      <button id="btn-load-fixtures">Загрузить вопросы (фикстуры)</button>
+      <button id="btn-load-default">Загрузить полный набор (2 раунда)</button>
+      <button id="btn-partner">Показать слайд WORKS TEAM + отправить вопрос</button>
+      <button id="btn-partner-foodi">Показать слайд ХЕЛЛО ФУДИ + отправить вопрос</button>
+      <button id="btn-partner-coffee">Показать слайды КОФЕЙНЫЕ ЭКСПЕРТЫ + отправить вопрос</button>
+      <button id="btn-partner-optikom">Показать слайд ОПТИКОМ + отправить вопрос</button>
+      <button id="btn-partner-funk">Показать слайд ФАНК + отправить вопрос</button>
+    </div>
+    <div class="row">
+      <input id="text" placeholder="Текст" style="width: 60%" />
+      <input id="options" placeholder="Варианты через ;" style="width: 30%" />
+      <input id="seconds" placeholder="Секунды" type="number" value="60" style="width: 8%"/>
+    </div>
+  </div>
+
+  <script>
+    async function post(path, body){
+      await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    }
+    async function get(path){
+      const r = await fetch(path);
+      return r.text();
+    }
+    const text = document.getElementById('text');
+    const options = document.getElementById('options');
+    const seconds = document.getElementById('seconds');
+    document.getElementById('btn-slide').onclick = () => post('/admin/broadcast', { type: 'slide', text: text.value });
+    document.getElementById('btn-question').onclick = () => post('/admin/broadcast', { type: 'question', text: text.value, options: options.value.split(';').map(s => s.trim()).filter(Boolean), seconds: Number(seconds.value)||60 });
+    document.getElementById('btn-results').onclick = () => post('/admin/broadcast', { type: 'results', text: text.value });
+    document.getElementById('btn-load-fixtures').onclick = async () => {
+      const payload = await buildFixturesPayload();
+      await post('/admin/load-fixtures', payload);
+      alert('Фикстуры загружены');
+    };
+    document.getElementById('btn-load-default').onclick = async () => {
+      await post('/admin/load-default', {});
+      alert('Полный набор (2 раунда) загружен');
+    };
+    document.getElementById('btn-partner').onclick = async () => {
+      const payload = {
+        slide: 'WORKS TEAM',
+        text: 'Какой мебелью в Древнем Риме считался стул?',
+        options: ['Мужской','Детской','Женской'],
+        correct_index: 2
+      };
+      await post('/admin/partner-question', payload);
+      alert('Слайд показан. Вопрос отправлен капитанам на 60с.');
+    };
+
+    document.getElementById('btn-partner-foodi').onclick = async () => {
+      const payload = {
+        slide: 'ХЕЛЛО ФУДИ',
+        text: 'Какой эффект на посещаемость офиса отмечается у сотрудников с гибридным графиком при включении компенсации питания в соцпакет?',
+        options: ['A) Они на 30% чаще стали ходить в офис','Б) Они на 55% чаще стали ходить в офис','Далее'],
+        correct_index: 0
+      };
+      await post('/admin/partner-question', payload);
+      alert('Слайд показан. Вопрос отправлен капитанам на 60с.');
+    };
+
+    document.getElementById('btn-partner-coffee').onclick = async () => {
+      const payload = {
+        slide: 'КОФЕЙНЫЕ ЭКСПЕРТЫ',
+        text: 'Сколько чашек Нескафе ежегодно выпивается на станциях АЗС Лукойл?',
+        options: ['1) чуть менее 500 тысяч','2) 1–2 миллиона','3) более 50 миллионов'],
+        correct_index: 2
+      };
+      await post('/admin/partner-question', payload);
+      alert('Слайд(ы) показан(ы). Вопрос отправлен капитанам на 60с.');
+    };
+
+    document.getElementById('btn-partner-optikom').onclick = async () => {
+      const payload = {
+        slide: 'ОПТИКОМ',
+        text: 'В качестве эксперимента, ютуб-блогер переписал от руки одно известное литературное произведение. Он исписал более 30 ручек и только лишь шариковая ручка Workmate 944 справилась с задачей. Какое это произведение?',
+        options: [
+          '«Каштанка», А.П. Чехов (около 3000 слов)',
+          '«Мастер и Маргарита» М.А. Булгаков (около 105 077 слов)',
+          '«Война и мир», Л. Н. Толстой (около 460 000 слов)',
+          '«Преступление и наказание» Ф. М. Достоевского (около 162 500 слов)'
+        ],
+        correct_index: 2
+      };
+      await post('/admin/partner-question', payload);
+      alert('Слайд показан. Вопрос отправлен капитанам на 60с.');
+    };
+
+    document.getElementById('btn-partner-funk').onclick = async () => {
+      const payload = {
+        slide: 'ФАНК',
+        text: 'В каком году и городе открылся первый коворкинг в России?',
+        options: [
+          'A) 2005 — Москва',
+          'В) 2008 — Екатеринбург',
+          'C) 2010 — Нижний Новгород'
+        ],
+        correct_index: 1
+      };
+      await post('/admin/partner-question', payload);
+      alert('Слайд показан. Вопрос отправлен капитанам на 60с.');
+    };
+
+    // Быстрые ссылки на экспорт и счет
+    const links = document.createElement('div');
+    links.className = 'row';
+    links.innerHTML = '<a href="/admin/export.csv" target="_blank">Экспорт CSV</a> | <a href="#" id="show-score">Показать счёт</a>';
+    document.querySelector('.container').appendChild(links);
+    document.getElementById('show-score').onclick = async (e) => {
+      e.preventDefault();
+      const resp = await fetch('/admin/score');
+      const data = await resp.json();
+      alert(data.score.map(s => `${s.team}: ${s.points}`).join('\n') || 'Пока пусто');
+    };
+
+    async function buildFixturesPayload(){
+      // Раунд 2: три кейса с весами (на основе вашего текста)
+      const case1 = {
+        type: 'case',
+        text: 'Кейс 1: ИнвестСтройГрупп — Какие действия предпримет Директор? (мультивыбор)',
+        options: ['A','B','C','D','E'],
+        scoring: { 'A': 0.5, 'B': 1, 'C': 0.5, 'D': 1.5, 'E': 2 }
+      };
+      const case2 = {
+        type: 'case',
+        text: 'Кейс 2: Панорама Плаза — Какие ваши возможные действия? (мультивыбор)',
+        options: ['A','B','C','D','E'],
+        scoring: { 'A': 0, 'B': 1, 'C': 1.5, 'D': 0, 'E': 2 }
+      };
+      const case3 = {
+        type: 'case',
+        text: 'Кейс 3: Деловые здания — Какие меры вы предпримете? (мультивыбор)',
+        options: ['A','B','C','D','E'],
+        scoring: { 'A': 1, 'B': 1.5, 'C': 0, 'D': 1, 'E': 2 }
+      };
+
+      // Раунд 1: примеры одиночных вопросов (первые блоки из списка)
+      const r1 = [
+        { type: 'single', text: 'Орг. документооборота — Средний', options: ['A','B','C','D'], correct_index: 1 },
+        { type: 'single', text: 'Орг. документооборота — Продвинутый', options: ['A','B','C','D'], correct_index: 1 },
+        { type: 'single', text: 'Орг. документооборота — Супер‑профи', options: ['A','B','C','D'], correct_index: 2 },
+        { type: 'single', text: 'Тех. состояние — Средний', options: ['A','B','C','D'], correct_index: 2 },
+        { type: 'single', text: 'Тех. состояние — Продвинутый', options: ['A','B','C','D'], correct_index: 1 },
+        { type: 'single', text: 'Тех. состояние — Супер‑профи', options: ['A','B','C','D'], correct_index: 1 },
+        { type: 'single', text: 'Финансы — Средний', options: ['A','B','C','D'], correct_index: 2 },
+        { type: 'single', text: 'Финансы — Продвинутый', options: ['A','B','C','D'], correct_index: 1 },
+        { type: 'single', text: 'Финансы — Супер‑профи', options: ['A','B','C','D'], correct_index: 1 },
+        { type: 'single', text: 'Право — Средний', options: ['A','B','C','D'], correct_index: 1 },
+        { type: 'single', text: 'Право — Продвинутый', options: ['A','B','C','D'], correct_index: 2 },
+        { type: 'single', text: 'Право — Супер‑профи', options: ['A','B','C','D'], correct_index: 2 },
+        { type: 'single', text: 'Арендаторы — Средний', options: ['A','B','C','D'], correct_index: 2 },
+        { type: 'single', text: 'Арендаторы — Продвинутый', options: ['A','B','C','D'], correct_index: 2 },
+        { type: 'single', text: 'Арендаторы — Супер‑профи', options: ['A','B','C','D'], correct_index: 2 },
+        { type: 'single', text: 'Цифровые — Средний', options: ['A','B','C','D'], correct_index: 2 },
+        { type: 'single', text: 'Цифровые — Продвинутый', options: ['A','B','C','D'], correct_index: 2 },
+        { type: 'single', text: 'Цифровые — Супер‑профи', options: ['A','B','C','D'], correct_index: 2 },
+        { type: 'single', text: 'Управленческие — Средний', options: ['A','B','C','D'], correct_index: 2 },
+        { type: 'single', text: 'Управленческие — Продвинутый', options: ['A','B','C','D'], correct_index: 2 },
+        { type: 'single', text: 'Управленческие — Супер‑профи', options: ['A','B','C','D'], correct_index: 2 },
+        { type: 'single', text: 'Безопасность — Средний', options: ['A','B','C','D'], correct_index: 2 },
+        { type: 'single', text: 'Безопасность — Продвинутый', options: ['A','B','C','D'], correct_index: 2 },
+        { type: 'single', text: 'Безопасность — Супер‑профи', options: ['A','B','C','D'], correct_index: 2 }
+      ];
+
+      return { game_name: 'Викторина', round: 1, questions: r1.concat([case1, case2, case3]) };
+    }
+  </script>
+</body>
+</html>
+
+

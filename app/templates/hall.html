@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Экран зала — Викторина</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body class="hall">
+  <div class="container">
+    <h1>Экран зала</h1>
+    <div id="stage" class="stage">Ожидание…</div>
+    <div id="timer" class="timer hidden">60</div>
+  </div>
+
+  <script>
+    const stage = document.getElementById('stage');
+    const timerEl = document.getElementById('timer');
+    let countdownId = null;
+    function startTimer(seconds) {
+      clearInterval(countdownId);
+      timerEl.classList.remove('hidden');
+      let remain = seconds;
+      timerEl.textContent = remain;
+      countdownId = setInterval(() => {
+        remain -= 1;
+        if (remain <= 0) {
+          timerEl.textContent = '0';
+          clearInterval(countdownId);
+          return;
+        }
+        timerEl.textContent = String(remain);
+      }, 1000);
+    }
+
+    function stopTimer() {
+      clearInterval(countdownId);
+      timerEl.classList.add('hidden');
+    }
+
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const ws = new WebSocket(`${proto}://${location.host}/ws/hall`);
+    ws.onmessage = (evt) => {
+      try {
+        const msg = JSON.parse(evt.data);
+        if (msg.type === 'slide') {
+          stage.textContent = msg.text || 'Слайд';
+          stopTimer();
+        }
+        if (msg.type === 'question') {
+          stage.textContent = `${msg.text}\n${(msg.options || []).join(' / ')}`;
+          startTimer(msg.seconds || 60);
+        }
+        if (msg.type === 'results') {
+          stage.textContent = msg.text || 'Результаты';
+          stopTimer();
+        }
+      } catch (e) {
+        console.error('WS message parse error', e);
+      }
+    };
+  </script>
+</body>
+</html>
+
+

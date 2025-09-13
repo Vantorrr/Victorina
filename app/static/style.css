@@ -1,0 +1,13 @@
+body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; }
+.container { padding: 24px; }
+.row { margin: 12px 0; display: flex; gap: 12px; align-items: center; }
+button { padding: 10px 16px; border-radius: 8px; border: 1px solid #ccc; background: #fafafa; cursor: pointer; }
+button:hover { background: #f0f0f0; }
+.stage { white-space: pre-line; font-size: 28px; padding: 16px; min-height: 200px; border: 1px dashed #999; border-radius: 12px; background: #fff; }
+.timer { font-size: 64px; font-weight: 700; margin-top: 16px; }
+.hidden { display: none; }
+
+body.hall { background: #0b0e1a; color: #e7ecff; }
+body.hall .stage { background: #121735; border-color: #2a3a90; }
+body.admin { background: #ffffff; color: #111; }
+
