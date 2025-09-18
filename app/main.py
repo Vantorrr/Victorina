@@ -5,7 +5,7 @@ import contextlib
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.db import init_db
@@ -33,17 +33,20 @@ async def on_startup() -> None:
     # seed admin if provided
     import os
     from app.db import get_connection
+    # Режим обслуживания: если включён, бот не поднимаем
+    maintenance = os.getenv("MAINTENANCE", "1") in ("1", "true", "True")
     seed_admin_id = int(os.getenv("SEED_ADMIN_ID", "0")) or None
     if seed_admin_id:
         with get_connection() as conn:
             conn.execute("INSERT OR IGNORE INTO admins(telegram_user_id) VALUES (?)", (seed_admin_id,))
             conn.commit()
     # Старт Telegram-бота (если есть токен)
-    tg_app = build_application()
-    if tg_app is not None:
-        loop = asyncio.get_event_loop()
-        app.state._tg_task = loop.create_task(run_polling(tg_app))
-        app.state.tg_app = tg_app
+    if not maintenance:
+        tg_app = build_application()
+        if tg_app is not None:
+            loop = asyncio.get_event_loop()
+            app.state._tg_task = loop.create_task(run_polling(tg_app))
+            app.state.tg_app = tg_app
 
 
 @app.on_event("shutdown")
@@ -57,6 +60,9 @@ async def on_shutdown() -> None:
 
 @app.get("/")
 async def root_redirect():
+    import os
+    if os.getenv("MAINTENANCE", "1") in ("1", "true", "True"):
+        return JSONResponse({"status": "maintenance", "message": "Ведутся технические работы"}, status_code=503)
     return RedirectResponse(url="/admin")
 
 
